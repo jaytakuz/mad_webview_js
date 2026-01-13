@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter JS Integration',
+      title: 'Flutter to JS Workshop',
       theme: ThemeData(
         useMaterial3: true,
       ),
@@ -31,47 +31,30 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   WebViewController? _controller;
-  String totalFromJS = '';
 
+  // HTML content with JS function to receive data from Flutter
   final String htmlContent = r'''
 <!DOCTYPE html>
 <html>
 <head>
+    <title>JS from Flutter</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-      body { 
-        font-family: serif; 
-        padding: 20px; 
-        background-color: white;
-      }
-      h1 { font-size: 32px; margin-bottom: 30px; }
-      p { font-size: 28px; font-weight: bold; margin-bottom: 40px; }
-      .btn {
-        background-color: #ebebeb;
-        color: #448aff;
-        border: none;
-        border-radius: 25px;
-        padding: 12px;
-        font-size: 18px;
-        width: 100%;
-        cursor: pointer;
-        text-align: center;
-      }
+      body { font-family: serif; padding: 20px; }
+      h1 { font-size: 28px; }
+      p { font-size: 18px; color: #555; }
     </style>
 </head>
 <body>
-  <h1>My Cart</h1>
-  <p id="total">Total: $120</p>
-  <button class="btn" onclick="sendTotalToFlutter()">
-    Send Total to Flutter
-  </button>
+    <h1>Web Page</h1>
+    <p id="msg">No message yet</p>
 
-  <script>
-    function sendTotalToFlutter() {
-      var totalPrice = document.getElementById('total').innerText;
-      FlutterChannel.postMessage(totalPrice);
-    }
-  </script>
+    <script>
+      function showMessageFromFlutter(msg) {
+        document.getElementById('msg').innerText = "Flutter says: " + msg;
+        return "Message received: " + msg;
+      }
+    </script>
 </body>
 </html>
 ''';
@@ -81,56 +64,54 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel(
-        'FlutterChannel',
-        onMessageReceived: (JavaScriptMessage message) {
-          setState(() {
-            totalFromJS = message.message;
-          });
-        },
-      )
       ..loadHtmlString(htmlContent);
+  }
+
+  // Method to send message to JavaScript
+  Future<void> _sendMessage() async {
+    if (_controller == null) return;
+
+    // Option 1: Just run JS, no return value
+    await _controller!.runJavaScript(
+      "showMessageFromFlutter('Hello from Flutter!')",
+    );
+
+    // Option 2: Get return value from JS
+    final Object result = await _controller!.runJavaScriptReturningResult(
+      "showMessageFromFlutter('Hello from Flutter with return value!')",
+    );
+    
+    debugPrint("JS returned: $result");
+    
+    // Optional: Show result in a snackbar to verify
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('JS returned: $result')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text(
-          'WebView JS Example',
-          style: TextStyle(color: Colors.black87, fontSize: 20),
+          'Flutter to JS',
+          style: TextStyle(color: Colors.black87),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFFFFF5F9), // Subtle pinkish/white background
+        backgroundColor: const Color(0xFFFFF5F9),
         elevation: 0,
-      ),
-      body: Column(
-        children: [
-          // WebView takes the main space
-          Expanded(
-            child: _controller != null
-                ? WebViewWidget(controller: _controller!)
-                : const Center(child: CircularProgressIndicator()),
-          ),
-          // "Received from JS" bar at the bottom
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFEEEEEE), // Light gray background
-              border: Border(top: BorderSide(color: Colors.black12, width: 0.5)),
-            ),
-            child: Text(
-              'Received from JS: $totalFromJS',
-              style: const TextStyle(
-                fontSize: 18,
-                color: Colors.black87,
-              ),
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.send, color: Colors.black87),
+            onPressed: _sendMessage,
           ),
         ],
       ),
+      body: _controller != null
+          ? WebViewWidget(controller: _controller!)
+          : const Center(child: CircularProgressIndicator()),
     );
   }
 }
